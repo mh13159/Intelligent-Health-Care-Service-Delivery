@@ -11,6 +11,7 @@ import pandas as pd
 
 
 Raw_Data_Directroy_Path_Relative = "..\\..\\Data\\Raw\\"
+Processed_Data_Directroy_Path_Relative = "..\\..\\Data\\Processed\\"
 
 #Load Datasets
 
@@ -83,8 +84,8 @@ Integrated_Data_Facility_Population_Maternity = (
     Integrated_Data_Facility_Population_Maternity.
     astype({Perecnt_Elderly_col_name:float,
             Percent_Female_col_name:float,
-            Maternity_Total_Women_col_name:float,
-            Maternity_Women_Gave_Birth_Past_12_months_col_name:float}))
+            Maternity_Total_Women_col_name:int,
+            Maternity_Women_Gave_Birth_Past_12_months_col_name:int}))
 
 
 # <Calculation for Current Elderly Population Count>#
@@ -97,7 +98,11 @@ Elderly_Total_Population_col = (
     )
 # <Calculation for Current Elderly Population Count>#
 
+# <ROUND OFF> #
 
+Elderly_Total_Population_col = Elderly_Total_Population_col.astype("int")
+
+# <ROUND OFF> #
 
 # <Calculation for Current Maternity Population Count>#
 Maternity_Percentage_Female_Population_col = (
@@ -109,20 +114,63 @@ Maternity_Percentage_Female_Population_col = (
     )
 
 
-
 Female_Total_Population_col = (Integrated_Data_Facility_Population_Maternity
                                [Total_Population_col_name]*
                                (Integrated_Data_Facility_Population_Maternity
                                [Percent_Female_col_name]/100)
                                )
 
+    # <ROUND OFF> #
+Female_Total_Population_col = Female_Total_Population_col.astype("int")
+    # <ROUND OFF> #
+
+
 Maternity_Total_Population_col = (
     Maternity_Percentage_Female_Population_col*
     Female_Total_Population_col
     )
-# <Calculation for Current Maternity Population Count>#
+
+    # <ROUND OFF> #
+Maternity_Total_Population_col = Maternity_Total_Population_col.astype("int")
+    # <ROUND OFF> #
 
 
+# <Calculation for Current Maternity Population Count> #
+
+
+# <Create Export Required Dataset>#
+
+Export_Data = pd.DataFrame()
+Export_Data = Facilities
+
+Export_Data["Area Population"] = (
+    Integrated_Data_Facility_Population_Maternity
+    [Total_Population_col_name])
+
+Export_Data["Maternity Population within Area"] = ( 
+    Maternity_Total_Population_col
+    )
+
+Export_Data["Elderly Population within Area"] = ( 
+    Elderly_Total_Population_col
+    )
+
+# Increase/decrease trend col  - IN PROGRESS
+"""Based on trend slope + / -  over historic data"""
+
+ 
+# Increase/decrease percentage col - IN PROGRESS
+"""Based on yearly historic data"""
+
+
+
+''' Assign Facility Type based on highest number of resource available over 
+ service categories ---  P: 10 , S: 20 T: 30 ---> T type facility '''
+
+(Export_Data.
+ to_csv
+ (Processed_Data_Directroy_Path_Relative+"DataFeatures_v01.csv"))
+# <Create Export Required Dataset> #
 
 
 
