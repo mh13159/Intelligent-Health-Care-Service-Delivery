@@ -4,176 +4,61 @@ Created on Sat Jun  6 19:15:05 2020
 
 @author: hamza
 """
-
-
-#import Libraries
 import pandas as pd
 
+# Define file paths
+RAW_DATA_DIR = "../../Data/Raw/"
+PROCESSED_DATA_DIR = "../../Data/Processed/"
 
-Raw_Data_Directroy_Path_Relative = "..\\..\\Data\\Raw\\"
-Processed_Data_Directroy_Path_Relative = "..\\..\\Data\\Processed\\"
+# Load datasets
+def load_dataset(file_path, file_name, skip_rows=1):
+    return pd.read_csv(file_path + file_name, skiprows=skip_rows)
 
-#Load Datasets
+facilities = load_dataset(RAW_DATA_DIR, "Facilities.xlsx")
+population_demographics = load_dataset(RAW_DATA_DIR + "Population_Demographics/", "ACSDP5Y2018.DP05_data_with_overlays_2020-06-02T120849.csv")
+maternity_info = load_dataset(RAW_DATA_DIR + "Maternity/", "ACSDT5Y2011.B13002_data_with_overlays_2020-06-07T222955.csv")
 
-    # Dataset 1 Facilities - Dataset 1.3.1 (Ntroduction, n.d.)
+# Clean ZCTA values
+def clean_zcta(dataframe, column_name):
+    return dataframe[column_name].str[len("ZCTA5")+1:]
 
-Facilities  = (pd.
-               read_excel
-               (Raw_Data_Directroy_Path_Relative+
-                "Facilites.xlsx"))
+population_demographics["Geographic Area Name"] = clean_zcta(population_demographics, "Geographic Area Name")
+maternity_info["Geographic Area Name"] = clean_zcta(maternity_info, "Geographic Area Name")
 
-    # converting Zipcode type to string
-Facilities= Facilities.astype({"Facility Area-Zipcode":str})
+# Merge datasets
+integrated_data = facilities.merge(population_demographics, left_on="Facility Area-Zipcode", right_on="Geographic Area Name").merge(maternity_info, left_on="Facility Area-Zipcode", right_on="Geographic Area Name")
 
+# Define column names
+PERCENT_ELDERLY_COL = "Percent Estimate!!SEX AND AGE!!Total population!!65 to 74 years"
+PERCENT_FEMALE_COL = "Percent Estimate!!SEX AND AGE!!Total population!!Female"
+MATERNITY_TOTAL_WOMEN_COL = "Estimate!!Total"
+MATERNITY_WOMEN_GAVE_BIRTH_COL = "Estimate!!Total!!Women who had a birth in the past 12 months"
+TOTAL_POPULATION_COL = "Estimate!!RACE!!Total population"
 
-    # Dataset 2  Population Demographics - Datasets 1.3.2 (Ntroduction, n.d.)
+# Convert column data types
+integrated_data = integrated_data.astype({
+    PERCENT_ELDERLY_COL: float,
+    PERCENT_FEMALE_COL: float,
+    MATERNITY_TOTAL_WOMEN_COL: int,
+    MATERNITY_WOMEN_GAVE_BIRTH_COL: int
+})
 
-Population_Demographics = (pd.
-                           read_csv
-                           (Raw_Data_Directroy_Path_Relative+
-                            "Population_Demographics\\ACSDP5Y2018."+
-                            "DP05_data_with_overlays_2020-06-02T120849.csv",
-                            header=1))
+# Calculate current elderly population count
+elderly_population_col = (integrated_data[TOTAL_POPULATION_COL] * (integrated_data[PERCENT_ELDERLY_COL] / 100)).astype(int)
 
-clean_ZCTA_pop = [ZCTA[len("ZCTA5")+1:] for ZCTA in list(Population_Demographics
-                                                   ["Geographic Area Name"])]
-Population_Demographics["Geographic Area Name"]= clean_ZCTA_pop
+# Calculate current maternity population count
+maternity_percentage_female_col = ((integrated_data[MATERNITY_TOTAL_WOMEN_COL] / integrated_data[MATERNITY_WOMEN_GAVE_BIRTH_COL]) / 100)
+female_total_population_col = (integrated_data[TOTAL_POPULATION_COL] * (integrated_data[PERCENT_FEMALE_COL] / 100)).astype(int)
+maternity_total_population_col = (maternity_percentage_female_col * female_total_population_col).astype(int)
 
-    # Dataset 3 Maternity Information - Datasets 1.3.2 (Ntroduction, n.d.)
-Maternity_Information = (pd.
-                           read_csv
-                           (Raw_Data_Directroy_Path_Relative+
-                            "Maternity\\"+
-                            "ACSDT5Y2011."+
-                            "B13002_data_with_overlays_2020-06-07T222955.csv",
-                            header=1))
+# Create export required dataset
+export_data = facilities.copy()
+export_data["Area Population"] = integrated_data[TOTAL_POPULATION_COL]
+export_data["Maternity Population within Area"] = maternity_total_population_col
+export_data["Elderly Population within Area"] = elderly_population_col
 
-
-clean_ZCTA_mat = [ZCTA[len("ZCTA5")+1:] for ZCTA in list(Maternity_Information
-                                                   ["Geographic Area Name"])]
-
-
-Maternity_Information["Geographic Area Name"]= clean_ZCTA_mat
-
-
-Integrated_Data_Facility_Population_Maternity = (Facilities.merge
-                                                 (Population_Demographics,
-                                                  how="inner",
-                                                  left_on=
-                                                  "Facility Area-Zipcode",
-                                                  right_on=
-                                                  "Geographic Area Name").
-                                                 merge
-                                                 (Maternity_Information,
-                                                  how="inner",
-                                                  left_on=
-                                                  "Facility Area-Zipcode",
-                                                  right_on=
-                                                  "Geographic Area Name"))
-Perecnt_Elderly_col_name = "Percent Estimate!!SEX AND AGE!!Total population!!65 to 74 years"
-
-Percent_Female_col_name = "Percent Estimate!!SEX AND AGE!!Total population!!Female"
-
-Maternity_Total_Women_col_name = "Estimate!!Total"
-
-Maternity_Women_Gave_Birth_Past_12_months_col_name =("Estimate!!Total!!Women who had a birth in the past 12 months")
-
-Total_Population_col_name = "Estimate!!RACE!!Total population"
-
-Integrated_Data_Facility_Population_Maternity = (
-    Integrated_Data_Facility_Population_Maternity.
-    astype({Perecnt_Elderly_col_name:float,
-            Percent_Female_col_name:float,
-            Maternity_Total_Women_col_name:int,
-            Maternity_Women_Gave_Birth_Past_12_months_col_name:int}))
-
-
-# <Calculation for Current Elderly Population Count>#
-
-Elderly_Total_Population_col = (
-    Integrated_Data_Facility_Population_Maternity
-    [Total_Population_col_name]*
-    (Integrated_Data_Facility_Population_Maternity
-     [Perecnt_Elderly_col_name]/100)
-    )
-# <Calculation for Current Elderly Population Count>#
-
-# <ROUND OFF> #
-
-Elderly_Total_Population_col = Elderly_Total_Population_col.astype("int")
-
-# <ROUND OFF> #
-
-# <Calculation for Current Maternity Population Count>#
-Maternity_Percentage_Female_Population_col = (
-    (Integrated_Data_Facility_Population_Maternity
-     [Maternity_Total_Women_col_name]/
-     Integrated_Data_Facility_Population_Maternity
-     [Maternity_Women_Gave_Birth_Past_12_months_col_name])/
-    100
-    )
-
-
-Female_Total_Population_col = (Integrated_Data_Facility_Population_Maternity
-                               [Total_Population_col_name]*
-                               (Integrated_Data_Facility_Population_Maternity
-                               [Percent_Female_col_name]/100)
-                               )
-
-    # <ROUND OFF> #
-Female_Total_Population_col = Female_Total_Population_col.astype("int")
-    # <ROUND OFF> #
-
-
-Maternity_Total_Population_col = (
-    Maternity_Percentage_Female_Population_col*
-    Female_Total_Population_col
-    )
-
-    # <ROUND OFF> #
-Maternity_Total_Population_col = Maternity_Total_Population_col.astype("int")
-    # <ROUND OFF> #
-
-
-# <Calculation for Current Maternity Population Count> #
-
-
-# <Create Export Required Dataset>#
-
-Export_Data = pd.DataFrame()
-Export_Data = Facilities
-
-Export_Data["Area Population"] = (
-    Integrated_Data_Facility_Population_Maternity
-    [Total_Population_col_name])
-
-Export_Data["Maternity Population within Area"] = ( 
-    Maternity_Total_Population_col
-    )
-
-Export_Data["Elderly Population within Area"] = ( 
-    Elderly_Total_Population_col
-    )
-
-# Increase/decrease trend col  - IN PROGRESS
-"""Based on trend slope + / -  over historic data"""
-
- 
-# Increase/decrease percentage col - IN PROGRESS
-"""Based on yearly historic data"""
-
-
-
-''' Assign Facility Type based on highest number of resource available over 
- service categories ---  P: 10 , S: 20 T: 30 ---> T type facility '''
-
-(Export_Data.
- to_csv
- (Processed_Data_Directroy_Path_Relative+"DataFeatures_v01.csv"))
-# <Create Export Required Dataset> #
-
-
-
+# Save the export dataset to a CSV file
+export_data.to_csv(PROCESSED_DATA_DIR + "DataFeatures_v01.csv", index=False)
 
 
 
